@@ -12,7 +12,7 @@
         .zone { padding: 15px; border: 1px solid #243040; border-radius: 10px; transition: 0.3s; }
         .label { display: block; font-size: 10px; color: #4a6070; text-transform: uppercase; }
         .value { font-size: 22px; font-weight: bold; }
-        .btn { width: 100%; padding: 15px; background: var(--accent); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn { width: 100%; padding: 15px; background: var(--accent); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: #07090f; }
     </style>
 </head>
 <body>
@@ -29,5 +29,55 @@
             <div class="zone" id="z4"><span class="value" id="v4">--</span><span class="label">Heel (A4)</span></div>
         </div>
     </div>
+
+    <script>
+        const connectBtn = document.getElementById('connectBtn');
+        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'GaitSense' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const char = await service.getCharacteristic(CHAR_UUID);
+                
+                await char.startNotifications();
+                connectBtn.textContent = "CONNECTED ✓";
+                connectBtn.style.background = "#32e87a";
+
+                char.addEventListener('characteristicvaluechanged', (e) => {
+                    const view = new DataView(e.target.value.buffer);
+                    for(let i=0; i<5; i++) {
+                        // Reads 2 bytes per sensor
+                        let rawValue = view.getUint16(i * 2); 
+                        updateUI(i, rawValue);
+                    }
+                });
+            } catch (err) {
+                alert("Web Bluetooth requires BLE hardware (like ESP32). Your Uno + HC-05 is not supported by browsers.");
+            }
+        });
+
+        function updateUI(index, val) {
+            const display = document.getElementById(`v${index}`);
+            const zone = document.getElementById(`z${index}`);
+            let percent = Math.round((val / 1023) * 100);
+            display.textContent = percent + "%";
+
+            if (percent > 45) { // Alert threshold
+                zone.style.borderColor = "#ff4460";
+                zone.style.color = "#ff4460";
+                zone.style.background = "rgba(255, 68, 96, 0.1)";
+            } else {
+                zone.style.borderColor = "#243040";
+                zone.style.color = "#d0e0f0";
+                zone.style.background = "transparent";
+            }
+        }
+    </script>
 </body>
 </html>
